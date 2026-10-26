@@ -1,5 +1,6 @@
 import { NonRetriableError, RetryAfterError } from "inngest";
-import { inngest, movieEmailFailed, movieWatched } from "../client";
+import { inngest } from "../client";
+import { MOVIE_EMAIL_FAILED, MOVIE_WATCHED, movieWatchedData } from "../schemas";
 import { sendMovieEmail } from "@/lib/email";
 import { MovieNotFoundError, ServiceError } from "@/lib/errors";
 import { fetchMovie } from "@/lib/omdb";
@@ -15,25 +16,30 @@ function toInngestError(err: unknown): Error {
 export const sendMoviePlot = inngest.createFunction(
   {
     id: "send-movie-plot",
-    triggers: [movieWatched],
     retries: 5, // default backoff is exponential; 6 attempts total
     // Resend's default limit is 2 req/s per team; queue instead of failing with 429s.
     throttle: { limit: 2, period: "1s" },
     concurrency: 10,
     onFailure: async ({ event, error, step }) => {
       const original = event.data.event.data as { movie_title?: string; recipient_email?: string };
-      await step.sendEvent(
-        "notify-failure",
-        movieEmailFailed.create({
+      await step.sendEvent("notify-failure", {
+        name: MOVIE_EMAIL_FAILED,
+        data: {
           movie_title: original.movie_title ?? "",
           recipient_email: original.recipient_email ?? "",
           reason: error.message,
-        }),
-      );
+        },
+      });
     },
   },
+  { event: MOVIE_WATCHED },
   async ({ event, step }) => {
-    const { movie_title, recipient_email } = event.data;
+    // v3 only type-checks event data; validate at runtime so bad input fails fast instead of retrying.
+    const parsed = movieWatchedData.safeParse(event.data);
+    if (!parsed.success) {
+      throw new NonRetriableError(`Invalid event: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+    }
+    const { movie_title, recipient_email } = parsed.data;
 
     // Separate steps: if the email fails, retries reuse the memoized OMDb result.
     const lookup = await step.run("fetch-movie", async () => {

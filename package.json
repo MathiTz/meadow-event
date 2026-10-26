@@ -13,7 +13,7 @@
     "mock": "node scripts/mock-services.mjs"
   },
   "dependencies": {
-    "inngest": "^4.26.0",
+    "inngest": "^3.54.2",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",

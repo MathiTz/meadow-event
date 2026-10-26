@@ -1,6 +1,7 @@
 # Meadow · `movie.watched` Inngest function
 
-> **Branches:** `main` / `v4` use the Inngest TypeScript SDK **v4**; `v3` is the same app on SDK **v3**.
+> **Branches:** `main` / `v4` use the Inngest TypeScript SDK **v4**; `v3` (this branch) is the same app on SDK **v3**.
+> The differences are small: v3 takes the trigger as a second argument to `createFunction`, types events with `EventSchemas().fromRecord`, and has no runtime event validation, so the handler validates with Zod (`NonRetriableError` on bad input).
 
 An [Inngest](https://www.inngest.com/) function that reacts to `meadow_api/movie.watched`, looks the movie up on [OMDb](https://www.omdbapi.com/), and emails the plot to the recipient with [Resend](https://resend.com/).
 
@@ -67,7 +68,7 @@ sequenceDiagram
 | Empty plot | OMDb's `"N/A"` becomes a friendly fallback sentence inside the normal email |
 | Injection | Plot/title are HTML-escaped; a plain-text part is included too |
 | Visibility | `onFailure` emits `meadow_api/movie.email.failed` (hook for alerting or a dead-letter queue) |
-| Bad input | The event schema (`src/inngest/client.ts`) rejects empty titles and invalid emails |
+| Bad input | The handler validates the event with Zod (`src/inngest/schemas.ts`); empty titles / invalid emails throw `NonRetriableError` |
 
 ## Setup
 
@@ -142,7 +143,7 @@ scripts/                               mock OMDb/Resend + e2e runner
 ```
 
 ## Assumptions
-- **Inngest SDK v4** (current `inngest` package): triggers are declared inside the function options via `eventType(...)`.
+- **Inngest SDK v3** (`inngest@^3`): trigger is the second argument of `createFunction`. See the `v4` branch for the current SDK.
 - `movie_title` is passed to OMDb's `t=` (exact-title lookup, `type=movie`, full plot). Ambiguous titles resolve to whatever OMDb ranks first.
 - An unknown title is treated as an expected outcome (the user typed something we can't find), so they get an explanatory email rather than silence.
 - Email content is the plot plus title/year/director/rating when available; the exercise only required the plot.
@@ -153,4 +154,4 @@ scripts/                               mock OMDb/Resend + e2e runner
 1. **Provide a ready sandbox**: a verified Resend sender/domain or a documented test inbox, plus a shared OMDb key. Candidates otherwise lose time on the Resend "only send to yourself" restriction, which says nothing about their skill.
 2. **Specify edge-case expectations**: what should happen for "movie not found", ambiguous titles, or `Plot: "N/A"`? Today every candidate invents different behaviour, which makes submissions hard to compare.
 3. **Ship fixture events and a mock OMDb/Resend** (like `fixtures/` and `scripts/` here) so reviewers can run every submission against the same inputs, including failure injection.
-4. **State the Inngest SDK version**, since v3 and v4 differ in how functions and triggers are declared.
+4. **State the Inngest SDK version**, since v3 and v4 differ in how functions and triggers are declared (this repo has a branch for each).
