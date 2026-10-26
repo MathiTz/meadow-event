@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { ServiceError } from "./errors";
+import { MovieNotFoundError, ServiceError } from "./errors";
 
-const OMDB_URL = "https://www.omdbapi.com/";
+const DEFAULT_OMDB_URL = "https://www.omdbapi.com/";
 const TIMEOUT_MS = 8_000;
 
 // OMDb answers 200 for "not found" and flags it in the body, so we model both shapes.
@@ -29,7 +29,8 @@ export type Movie = {
   plot: string;
 };
 
-export const NO_PLOT = "No plot summary is available for this movie.";
+export const NO_PLOT =
+  "We couldn't find a plot summary for this one. It may be too new or too obscure for our movie database.";
 
 const clean = (v?: string) => (v && v !== "N/A" ? v : undefined);
 
@@ -41,7 +42,8 @@ export async function fetchMovie(
   // Missing config will never fix itself between retries.
   if (!apiKey) throw new ServiceError("OMDB_API_KEY is not configured", false);
 
-  const url = new URL(OMDB_URL);
+  // OMDB_BASE_URL lets the e2e suite point at the local mock server.
+  const url = new URL(process.env.OMDB_BASE_URL || DEFAULT_OMDB_URL);
   url.search = new URLSearchParams({ t: title, type: "movie", plot: "full", apikey: apiKey }).toString();
 
   let res: Response;
@@ -64,7 +66,8 @@ export async function fetchMovie(
 
   const body = parsed.data;
   if (body.Response === "False") {
-    // "Movie not found!" / "Invalid API key!" / "Request limit reached!"
+    if (/not found/i.test(body.Error)) throw new MovieNotFoundError(title);
+    // "Invalid API key!" / "Request limit reached!"
     const limited = /limit/i.test(body.Error);
     throw new ServiceError(`OMDb: ${body.Error}`, limited, limited ? 3600 : undefined);
   }

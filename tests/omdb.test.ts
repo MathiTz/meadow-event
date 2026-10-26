@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fetchMovie, NO_PLOT } from "@/lib/omdb";
-import { ServiceError } from "@/lib/errors";
+import { MovieNotFoundError, ServiceError } from "@/lib/errors";
 
 const json = (body: unknown, init?: ResponseInit) => async () => new Response(JSON.stringify(body), init);
 const found = { Response: "True", Title: "The Matrix", Year: "1999", Plot: "A hacker learns the truth.", imdbRating: "8.7" };
@@ -14,11 +14,14 @@ describe("fetchMovie", () => {
   it("falls back when OMDb has no plot", async () => {
     const movie = await fetchMovie("X", "k", json({ ...found, Plot: "N/A" }));
     expect(movie.plot).toBe(NO_PLOT);
+    expect(NO_PLOT).toMatch(/couldn't find a plot summary/);
   });
 
-  it("treats 200 + Response:False (not found) as non-retriable", async () => {
+  it("treats 200 + Response:False (not found) as a MovieNotFoundError, never retried", async () => {
     const err = await fetchMovie("zzz", "k", json({ Response: "False", Error: "Movie not found!" })).catch((e) => e);
+    expect(err).toBeInstanceOf(MovieNotFoundError);
     expect(err).toBeInstanceOf(ServiceError);
+    expect(err.title).toBe("zzz");
     expect(err.retriable).toBe(false);
   });
 

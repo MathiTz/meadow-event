@@ -1,0 +1,5 @@
+{
+  "description": "Resilience: Resend answers 500 once, then succeeds. Inngest retries; exactly one email is delivered",
+  "event": { "name": "meadow_api/movie.watched", "data": { "movie_title": "Flaky Film", "recipient_email": "peter@test.com" } },
+  "expect": { "runStatus": "Completed", "emails": 1, "subjectIncludes": "Flaky Film", "resendAttempts": 2 }
+}

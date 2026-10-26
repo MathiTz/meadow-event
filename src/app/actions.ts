@@ -1,12 +1,13 @@
 "use server";
 
 import { inngest, movieWatched } from "@/inngest/client";
+import { movieWatchedData } from "@/inngest/schemas";
 
 export type SendResult = { ok: true; eventId: string } | { ok: false; error: string };
 
 export async function sendMovieWatched(formData: FormData): Promise<SendResult> {
   // Parse with the same schema the function uses, so the UI can't send what the function would reject.
-  const parsed = movieWatched.schema.safeParse({
+  const parsed = movieWatchedData.safeParse({
     movie_title: formData.get("movie_title"),
     recipient_email: formData.get("recipient_email"),
   });

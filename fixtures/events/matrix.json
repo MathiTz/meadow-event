@@ -1,0 +1,5 @@
+{
+  "description": "Happy path: movie found, plot emailed (the exact event from the exercise)",
+  "event": { "name": "meadow_api/movie.watched", "data": { "movie_title": "The Matrix", "recipient_email": "peter@test.com" } },
+  "expect": { "runStatus": "Completed", "emails": 1, "subjectIncludes": "The Matrix (1999)", "bodyIncludes": "Neo" }
+}

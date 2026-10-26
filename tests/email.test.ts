@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildMovieEmail, sendMovieEmail } from "@/lib/email";
+import { buildMovieEmail, buildNotFoundEmail, sendMovieEmail } from "@/lib/email";
 
 const movie = { title: "Tom & Jerry", year: "2021", plot: "<script>alert(1)</script> Cat chases mouse." };
 
@@ -18,6 +18,16 @@ describe("buildMovieEmail", () => {
   });
 });
 
+describe("buildNotFoundEmail", () => {
+  it("names the title (escaped) and suggests what to try", () => {
+    const { subject, html, text } = buildNotFoundEmail('<b>Oops</b>');
+    expect(subject).toContain("couldn't find");
+    expect(html).not.toContain("<b>Oops</b>");
+    expect(text).toContain("<b>Oops</b>");
+    expect(text).toMatch(/spelling/);
+  });
+});
+
 describe("sendMovieEmail", () => {
   const base = { to: "a@b.co", movie, idempotencyKey: "k1", from: "Me <me@x.co>" };
 
@@ -25,6 +35,12 @@ describe("sendMovieEmail", () => {
     const { send, client: c } = client({ data: { id: "em_1" }, error: null });
     await expect(sendMovieEmail({ ...base, client: c })).resolves.toEqual({ id: "em_1" });
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ to: "a@b.co", from: "Me <me@x.co>" }), { idempotencyKey: "k1" });
+  });
+
+  it("sends the not-found message when given notFoundTitle", async () => {
+    const { send, client: c } = client({ data: { id: "em_2" }, error: null });
+    await sendMovieEmail({ ...base, movie: { notFoundTitle: "Nope" }, client: c });
+    expect(send.mock.calls[0][0].subject).toContain("Nope");
   });
 
   it.each([

@@ -1,0 +1,5 @@
+{
+  "description": "Edge case: OMDb returns Plot 'N/A'. Email still sent with a friendly fallback message",
+  "event": { "name": "meadow_api/movie.watched", "data": { "movie_title": "No Plot Movie", "recipient_email": "peter@test.com" } },
+  "expect": { "runStatus": "Completed", "emails": 1, "subjectIncludes": "No Plot Movie", "bodyIncludes": "couldn't find a plot summary" }
+}

@@ -1,16 +1,12 @@
 import { Inngest, eventType } from "inngest";
 import { z } from "zod";
+import { MOVIE_EMAIL_FAILED, MOVIE_WATCHED, movieWatchedData } from "./schemas";
 
 export const inngest = new Inngest({ id: "meadow-event" });
 
-export const movieWatched = eventType("meadow_api/movie.watched", {
-  schema: z.object({
-    movie_title: z.string().trim().min(1),
-    recipient_email: z.string().trim().email(),
-  }),
-});
+export const movieWatched = eventType(MOVIE_WATCHED, { schema: movieWatchedData });
 
-export const movieEmailFailed = eventType("meadow_api/movie.email.failed", {
+export const movieEmailFailed = eventType(MOVIE_EMAIL_FAILED, {
   schema: z.object({
     movie_title: z.string(),
     recipient_email: z.string(),

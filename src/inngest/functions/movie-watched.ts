@@ -1,7 +1,7 @@
 import { NonRetriableError, RetryAfterError } from "inngest";
 import { inngest, movieEmailFailed, movieWatched } from "../client";
 import { sendMovieEmail } from "@/lib/email";
-import { ServiceError } from "@/lib/errors";
+import { MovieNotFoundError, ServiceError } from "@/lib/errors";
 import { fetchMovie } from "@/lib/omdb";
 
 /** Translate our service errors into Inngest's retry semantics. */
@@ -36,22 +36,29 @@ export const sendMoviePlot = inngest.createFunction(
     const { movie_title, recipient_email } = event.data;
 
     // Separate steps: if the email fails, retries reuse the memoized OMDb result.
-    const movie = await step.run("fetch-movie", async () => {
+    const lookup = await step.run("fetch-movie", async () => {
       try {
-        return await fetchMovie(movie_title);
+        return { movie: await fetchMovie(movie_title) };
       } catch (err) {
+        // Unknown title is an expected outcome: tell the recipient instead of failing the run.
+        if (err instanceof MovieNotFoundError) return { movie: null };
         throw toInngestError(err);
       }
     });
 
     const email = await step.run("send-email", async () => {
       try {
-        return await sendMovieEmail({ to: recipient_email, movie, idempotencyKey: `movie-watched/${event.id}` });
+        return await sendMovieEmail({ to: recipient_email, movie: lookup.movie ?? { notFoundTitle: movie_title }, idempotencyKey: `movie-watched/${event.id}` });
       } catch (err) {
         throw toInngestError(err);
       }
     });
 
-    return { title: movie.title, recipient: recipient_email, emailId: email.id };
+    return {
+      outcome: lookup.movie ? "plot_sent" : "not_found_sent",
+      title: lookup.movie?.title ?? movie_title,
+      recipient: recipient_email,
+      emailId: email.id,
+    };
   },
 );

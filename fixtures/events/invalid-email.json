@@ -1,0 +1,5 @@
+{
+  "description": "Bad input: malformed recipient. Run fails fast (non-retriable) and no email is sent",
+  "event": { "name": "meadow_api/movie.watched", "data": { "movie_title": "The Matrix", "recipient_email": "not-an-email" } },
+  "expect": { "runStatus": "Failed", "emails": 0 }
+}

@@ -23,9 +23,20 @@ ${meta.length ? `<p style="margin:0 0 16px;color:#6b7280">${escapeHtml(meta.join
   return { subject: `Your movie recap: ${heading}`, html, text };
 }
 
+export function buildNotFoundEmail(title: string) {
+  const subject = `We couldn't find "${title}"`;
+  const body = `We couldn't find a movie called "${title}" in our database. Check the spelling, or try the original title (e.g. "Amélie" instead of its translation).`;
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;line-height:1.6;color:#1f2937">
+<h1 style="font-size:22px;margin:0 0 12px">Movie not found</h1>
+<p>${escapeHtml(body)}</p>
+</div>`;
+  return { subject, html, text: body };
+}
+
 type SendArgs = {
   to: string;
-  movie: Movie;
+  /** A found movie, or `{ notFoundTitle }` to send the friendly "not found" message. */
+  movie: Movie | { notFoundTitle: string };
   /** Same key => Resend sends at most one email, even if Inngest retries the step. */
   idempotencyKey: string;
   from?: string;
@@ -44,7 +55,7 @@ export async function sendMovieEmail({
   if (!from) throw new ServiceError("RESEND_FROM is not configured", false);
 
   const resend = client ?? new Resend(apiKey);
-  const { subject, html, text } = buildMovieEmail(movie);
+  const { subject, html, text } = "notFoundTitle" in movie ? buildNotFoundEmail(movie.notFoundTitle) : buildMovieEmail(movie);
 
   // The SDK resolves with { data, error } rather than throwing for API errors.
   const { data, error } = await resend.emails.send({ from, to, subject, html, text }, { idempotencyKey });

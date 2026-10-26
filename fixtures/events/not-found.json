@@ -1,0 +1,5 @@
+{
+  "description": "Edge case: unknown title. Run completes and the recipient gets a friendly 'not found' email",
+  "event": { "name": "meadow_api/movie.watched", "data": { "movie_title": "Zzzqqxx Not A Film", "recipient_email": "peter@test.com" } },
+  "expect": { "runStatus": "Completed", "emails": 1, "subjectIncludes": "couldn't find", "bodyIncludes": "Zzzqqxx Not A Film" }
+}
