@@ -48,7 +48,7 @@ sequenceDiagram
     end
     opt retries exhausted or non-retriable
         I->>F: onFailure handler
-        F->>I: emit meadow_api/movie.email.failed
+        F->>I: emit meadow_api/movie.recap.failed
     end
 ```
 
@@ -66,7 +66,7 @@ sequenceDiagram
 | Unknown title | Not an error: the recipient gets a friendly "we couldn't find *X*" email and the run completes |
 | Empty plot | OMDb's `"N/A"` becomes a friendly fallback sentence inside the normal email |
 | Injection | Plot/title are HTML-escaped; a plain-text part is included too |
-| Visibility | `onFailure` emits `meadow_api/movie.email.failed` (hook for alerting or a dead-letter queue) |
+| Visibility | `onFailure` emits `meadow_api/movie.recap.failed` (hook for alerting or a dead-letter queue) |
 | Bad input | The event schema (`src/inngest/client.ts`) rejects empty titles and invalid emails |
 
 ## Setup

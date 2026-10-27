@@ -1,5 +1,5 @@
 import { NonRetriableError, RetryAfterError } from "inngest";
-import { inngest, movieEmailFailed, movieWatched } from "../client";
+import { inngest, movieRecapFailed, movieWatched } from "../client";
 import { sendMovieEmail } from "@/lib/email";
 import { MovieNotFoundError, ServiceError } from "@/lib/errors";
 import { fetchMovie } from "@/lib/omdb";
@@ -24,7 +24,7 @@ export const sendMoviePlot = inngest.createFunction(
       const original = event.data.event.data as { movie_title?: string; recipient_email?: string };
       await step.sendEvent(
         "notify-failure",
-        movieEmailFailed.create({
+        movieRecapFailed.create({
           movie_title: original.movie_title ?? "",
           recipient_email: original.recipient_email ?? "",
           reason: error.message,

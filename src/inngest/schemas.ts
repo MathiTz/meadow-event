@@ -8,4 +8,4 @@ export const movieWatchedData = z.object({
 export type MovieWatchedData = z.infer<typeof movieWatchedData>;
 
 export const MOVIE_WATCHED = "meadow_api/movie.watched";
-export const MOVIE_EMAIL_FAILED = "meadow_api/movie.email.failed";
+export const MOVIE_RECAP_FAILED = "meadow_api/movie.recap.failed";
