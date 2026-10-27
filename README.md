@@ -141,6 +141,22 @@ fixtures/events/                       replayable events + expected outcomes
 scripts/                               mock OMDb/Resend + e2e runner
 ```
 
+## Inngest SDK v3 vs v4
+
+The same app lives on two branches so you can compare. Behaviour is identical (verified by the same unit tests and the 5 e2e fixtures); only the SDK surface differs.
+
+| | **v3** (`v3` branch) | **v4** (`main` / `v4`) |
+|---|---|---|
+| Trigger | 2nd argument: `createFunction(opts, { event: "name" }, handler)` | Inside options: `createFunction({ ..., triggers: [movieWatched] }, handler)` |
+| Event definition | `new EventSchemas().fromRecord<Events>()`, types only | `eventType("name", { schema })` with any Standard Schema (Zod here), reused as trigger and as a typed `.create()` builder |
+| Runtime validation of event data | None, so the handler validates with Zod and throws `NonRetriableError` | Built in through the schema |
+| Sending events | `inngest.send({ name, data })` | `inngest.send(movieWatched.create(data))` |
+| Steps, retries, throttle, concurrency, `onFailure`, `NonRetriableError`, `RetryAfterError`, `serve()` | same | same |
+
+**Which one to use**
+- **v4: new projects**, and anywhere you want the event schema defined once and enforced at runtime (trigger, sender and handler share one definition). This is the default here.
+- **v3: existing apps already on v3** that aren't ready to migrate, or codebases pinned to v3 by other tooling. Moving to v4 is mostly mechanical (the table above), see Inngest's v3-to-v4 migration guide.
+
 ## Assumptions
 - **Inngest SDK v4** (current `inngest` package): triggers are declared inside the function options via `eventType(...)`.
 - `movie_title` is passed to OMDb's `t=` (exact-title lookup, `type=movie`, full plot). Ambiguous titles resolve to whatever OMDb ranks first.
