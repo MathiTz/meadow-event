@@ -9,8 +9,8 @@ function client(result: unknown) {
 }
 
 describe("buildMovieEmail", () => {
-  it("escapes external content in HTML but keeps plain text readable", () => {
-    const { html, text, subject } = buildMovieEmail(movie);
+  it("escapes external content in HTML but keeps plain text readable", async () => {
+    const { html, text, subject } = await buildMovieEmail(movie);
     expect(html).not.toContain("<script>");
     expect(html).toContain("Tom &amp; Jerry");
     expect(text).toContain("<script>alert(1)</script>");
@@ -19,8 +19,8 @@ describe("buildMovieEmail", () => {
 });
 
 describe("buildNotFoundEmail", () => {
-  it("names the title (escaped) and suggests what to try", () => {
-    const { subject, html, text } = buildNotFoundEmail('<b>Oops</b>');
+  it("names the title (escaped) and suggests what to try", async () => {
+    const { subject, html, text } = await buildNotFoundEmail('<b>Oops</b>');
     expect(subject).toContain("couldn't find");
     expect(html).not.toContain("<b>Oops</b>");
     expect(text).toContain("<b>Oops</b>");

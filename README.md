@@ -65,7 +65,7 @@ sequenceDiagram
 | Hung upstreams | 8s `AbortSignal.timeout` on the OMDb call |
 | Unknown title | Not an error: the recipient gets a friendly "we couldn't find *X*" email and the run completes |
 | Empty plot | OMDb's `"N/A"` becomes a friendly fallback sentence inside the normal email |
-| Injection | Plot/title are HTML-escaped; a plain-text part is included too |
+| Injection | Emails are [React Email](https://react.email/) components, so React escapes the plot and title; a plain-text part is included too |
 | Visibility | `onFailure` emits `meadow_api/movie.recap.failed` (hook for alerting or a dead-letter queue) |
 | Bad input | The event schema (`src/inngest/client.ts`) rejects empty titles and invalid emails |
 
@@ -73,11 +73,24 @@ sequenceDiagram
 
 Requires Node 20+.
 
+### 1. Get your API keys
+
+| Variable | Where to get it |
+|---|---|
+| `OMDB_API_KEY` | Free key at <https://www.omdbapi.com/apikey.aspx> (choose FREE, 1,000 requests/day). OMDb emails you a link that **must be clicked to activate** the key. |
+| `RESEND_API_KEY` | Create a Resend account, then **API Keys → Create API Key** (Sending access is enough) at <https://resend.com/api-keys>. Docs: <https://resend.com/docs/dashboard/api-keys/introduction>. |
+| `RESEND_FROM` | The default `onboarding@resend.dev` works with no setup, but Resend only delivers it to **the email you signed up with**, so use that address as the recipient when trying it out. To email anyone else, [verify a domain](https://resend.com/docs/dashboard/domains/introduction) and use an address on it. |
+| `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` | **Production only.** Not needed locally: the Inngest dev server (below) runs with no account ([local development docs](https://www.inngest.com/docs/local-development)). In production they come from the [Inngest dashboard](https://app.inngest.com). |
+
+### 2. Install and configure
+
 ```bash
 npm install
 cp .env.example .env.local   # then fill in OMDB_API_KEY, RESEND_API_KEY, RESEND_FROM
 echo "INNGEST_DEV=1" >> .env.local
 ```
+
+### 3. Run
 
 Run the app and the Inngest dev server in two terminals:
 
@@ -100,8 +113,11 @@ curl -X POST http://localhost:8288/e/test -H 'content-type: application/json' \
 
 ### Tests
 
+The same checks run on every push and pull request in GitHub Actions (`.github/workflows/ci.yml`: typecheck, lint, unit tests, build, and the mocked e2e).
+
 ```bash
 npm test      # unit: OMDb parsing, Resend error mapping, escaping, edge-case emails
+npm run typecheck && npm run lint
 npm run e2e   # end-to-end against fixtures (below)
 ```
 
@@ -133,7 +149,8 @@ src/inngest/client.ts                  client + typed, Zod-validated event defin
 src/inngest/functions/movie-watched.ts the function (steps, retry mapping, flow control)
 src/inngest/schemas.ts                 Zod event schema shared by function, UI and tests
 src/lib/omdb.ts                        OMDb client -> typed ServiceError(retriable)
-src/lib/email.ts                       Resend wrapper + email template
+src/lib/email.tsx                      Resend wrapper (send, idempotency, error mapping)
+src/emails/                            React Email templates (movie recap, not found)
 src/app/api/inngest/route.ts           Inngest serve handler
 src/app/actions.ts, components/demo.tsx demo form (server action) with run-status polling
 tests/                                 Vitest unit tests
