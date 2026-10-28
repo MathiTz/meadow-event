@@ -99,7 +99,7 @@ export function Demo() {
             {process.env.NODE_ENV !== "production" && (
               <>
                 {" · "}
-                <a className="underline" target="_blank" rel="noreferrer" href={`http://localhost:8288/runs/${run.runId}`}>
+                <a className="underline" target="_blank" rel="noreferrer" href={`http://localhost:8288/run?runID=${run.runId}`}>
                   open trace in Inngest
                 </a>
               </>

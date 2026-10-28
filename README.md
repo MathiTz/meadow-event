@@ -6,6 +6,20 @@ An [Inngest](https://www.inngest.com/) function that reacts to `meadow_api/movie
 
 Built with Next.js (App Router) + TypeScript. Inngest is served from a route handler (`/api/inngest`). A small demo page sends the event and shows the run progressing.
 
+## Screenshots
+
+**Demo page** (`npm run dev`): send the event and watch the run progress. Shown here against the local mock services, so no real email is sent.
+
+![Demo page after a completed run](docs/screenshots/demo.png)
+
+**Inngest dev server trace** of a run where Resend failed once (the `flaky-resend` fixture). `send-email` is the hatched bar: it was retried with backoff and then succeeded, while `fetch-movie` ran once and was not repeated.
+
+![Inngest trace showing send-email retried and the run completing](docs/screenshots/inngest-trace.png)
+
+**The email as received in Gmail** (real Resend delivery to the account owner's address, `onboarding@resend.dev` sender):
+
+![The Matrix recap email in Gmail](docs/screenshots/email-recap.png)
+
 ## How it works
 
 ```mermaid
@@ -170,6 +184,27 @@ The same app lives on two branches so you can compare. Behaviour is identical (v
 | Sending events | `inngest.send({ name, data })` | `inngest.send(movieWatched.create(data))` |
 | Steps, retries, throttle, concurrency, `onFailure`, `NonRetriableError`, `RetryAfterError`, `serve()` | same | same |
 
+The code difference, side by side (the rest of the function body is identical):
+
+```diff
+-import { EventSchemas, Inngest } from "inngest";
+-type Events = { [MOVIE_WATCHED]: { data: MovieWatchedData } };
+-export const inngest = new Inngest({ id: "meadow-event", schemas: new EventSchemas().fromRecord<Events>() });
++import { Inngest, eventType } from "inngest";
++export const inngest = new Inngest({ id: "meadow-event" });
++export const movieWatched = eventType(MOVIE_WATCHED, { schema: movieWatchedData });
+
+ inngest.createFunction(
+-  { id: "send-movie-plot", retries: 5, /* ... */ },
+-  { event: MOVIE_WATCHED },                  // v3: trigger is the 2nd argument
++  { id: "send-movie-plot", triggers: [movieWatched], retries: 5, /* ... */ },  // v4: trigger is an option
+   async ({ event, step }) => {
+-    const parsed = movieWatchedData.safeParse(event.data);   // v3: validate by hand
+-    if (!parsed.success) throw new NonRetriableError(/* ... */);
+-    const { movie_title, recipient_email } = parsed.data;
++    const { movie_title, recipient_email } = event.data;     // v4: already validated
+```
+
 **Which one to use**
 - **v4: new projects**, and anywhere you want the event schema defined once and enforced at runtime (trigger, sender and handler share one definition). This is the default here.
 - **v3: existing apps already on v3** that aren't ready to migrate, or codebases pinned to v3 by other tooling. Moving to v4 is mostly mechanical (the table above), see Inngest's v3-to-v4 migration guide.
@@ -181,6 +216,7 @@ The same app lives on two branches so you can compare. Behaviour is identical (v
 - Email content is the plot plus title/year/director/rating when available; the exercise only required the plot.
 - Resend without a verified domain can only send from `onboarding@resend.dev` **to the Resend account owner's address**. Testing used that address. `RESEND_FROM` is configurable for real use.
 - No persistence: the Inngest run history is the record of what was sent.
+- **Sending the same event twice sends two emails.** The Resend idempotency key is the Inngest event id, so it stops a *retry* of one event from emailing twice, not two separate `movie.watched` events (rewatching a movie is legitimate, so this is deliberate). Tested: two identical events without an `id` produced 2 emails; two events sharing an explicit `id` (for example `watch-<userId>-<movieId>`) produced 1, because Inngest drops events with a repeated id. If duplicates should be suppressed, the producer sets that `id`.
 
 ## Recommendations for improving this exercise
 1. **Provide a ready sandbox**: a verified Resend sender/domain or a documented test inbox, plus a shared OMDb key. Candidates otherwise lose time on the Resend "only send to yourself" restriction, which says nothing about their skill.
