@@ -7,6 +7,20 @@ An [Inngest](https://www.inngest.com/) function that reacts to `meadow_api/movie
 
 Built with Next.js (App Router) + TypeScript. Inngest is served from a route handler (`/api/inngest`). A small demo page sends the event and shows the run progressing.
 
+## Screenshots
+
+**Demo page** (`npm run dev`): send the event and watch the run progress. Shown here against the local mock services, so no real email is sent.
+
+![Demo page after a completed run](docs/screenshots/demo.png)
+
+**Inngest dev server trace** of a run where Resend failed once (the `flaky-resend` fixture). `send-email` is the hatched bar: it was retried with backoff and then succeeded, while `fetch-movie` ran once and was not repeated.
+
+![Inngest trace showing send-email retried and the run completing](docs/screenshots/inngest-trace.png)
+
+**The email as received in Gmail** (real Resend delivery to the account owner's address, `onboarding@resend.dev` sender):
+
+![The Matrix recap email in Gmail](docs/screenshots/email-recap.png)
+
 ## How it works
 
 ```mermaid
@@ -159,6 +173,10 @@ fixtures/events/                       replayable events + expected outcomes
 scripts/                               mock OMDb/Resend + e2e runner
 ```
 
+## Inngest SDK v3 vs v4
+
+This branch is v3. The side-by-side comparison, code diff and guidance on which to use are in the [`main` README](https://github.com/MathiTz/meadow-event#inngest-sdk-v3-vs-v4).
+
 ## Assumptions
 - **Inngest SDK v3** (`inngest@^3`): trigger is the second argument of `createFunction`. See the `v4` branch for the current SDK.
 - `movie_title` is passed to OMDb's `t=` (exact-title lookup, `type=movie`, full plot). Ambiguous titles resolve to whatever OMDb ranks first.
@@ -166,6 +184,7 @@ scripts/                               mock OMDb/Resend + e2e runner
 - Email content is the plot plus title/year/director/rating when available; the exercise only required the plot.
 - Resend without a verified domain can only send from `onboarding@resend.dev` **to the Resend account owner's address**. Testing used that address. `RESEND_FROM` is configurable for real use.
 - No persistence: the Inngest run history is the record of what was sent.
+- **Sending the same event twice sends two emails.** The Resend idempotency key is the Inngest event id, so it stops a *retry* of one event from emailing twice, not two separate `movie.watched` events (rewatching a movie is legitimate, so this is deliberate). Tested: two identical events without an `id` produced 2 emails; two events sharing an explicit `id` (for example `watch-<userId>-<movieId>`) produced 1, because Inngest drops events with a repeated id. If duplicates should be suppressed, the producer sets that `id`.
 
 ## Recommendations for improving this exercise
 1. **Provide a ready sandbox**: a verified Resend sender/domain or a documented test inbox, plus a shared OMDb key. Candidates otherwise lose time on the Resend "only send to yourself" restriction, which says nothing about their skill.
