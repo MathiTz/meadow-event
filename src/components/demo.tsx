@@ -5,7 +5,9 @@ import { sendMovieWatched } from "@/app/actions";
 
 type Run = { status: string; runId?: string; output?: { message?: string } | string };
 
-const TERMINAL = ["Completed", "Failed", "Cancelled"];
+const TERMINAL = ["Completed", "Failed", "Cancelled", "Suppressed"];
+// A duplicate (same event id, or skipped by the function's rate limit) never starts a run, so the run stays "Queued".
+const SUPPRESSED_AFTER_MS = 12_000;
 const inputCls =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900";
 
@@ -20,9 +22,11 @@ export function Demo() {
   useEffect(() => {
     if (!eventId) return;
     let stop = false;
+    const startedAt = Date.now();
     const tick = async () => {
-      const r: Run = await fetch(`/api/runs/${eventId}`).then((res) => res.json());
+      let r: Run = await fetch(`/api/runs/${eventId}`).then((res) => res.json());
       if (stop) return;
+      if (r.status === "Queued" && Date.now() - startedAt > SUPPRESSED_AFTER_MS) r = { status: "Suppressed" };
       setRun(r);
       if (!TERMINAL.includes(r.status)) setTimeout(tick, 1000);
     };
@@ -47,12 +51,19 @@ export function Demo() {
   const status = run?.status;
   const done = status === "Completed";
   const failed = status === "Failed" || status === "Cancelled";
+  const suppressed = status === "Suppressed";
   const out = typeof run?.output === "object" ? run.output : undefined;
 
   const stages = [
     { label: "Event sent to Inngest", state: eventId ? "done" : "idle" },
-    { label: "Run: fetch plot from OMDb, then send via Resend", state: !eventId ? "idle" : done ? "done" : failed ? "failed" : "active" },
-    { label: done ? `Email delivered to ${recipient}` : failed ? "Run failed after retries" : "Email delivered", state: done ? "done" : failed ? "failed" : "idle" },
+    {
+      label: suppressed ? "Duplicate: same movie and recipient within a minute, so no new run" : "Run: fetch plot from OMDb, then send via Resend",
+      state: !eventId ? "idle" : suppressed ? "skipped" : done ? "done" : failed ? "failed" : "active",
+    },
+    {
+      label: done ? `Email delivered to ${recipient}` : failed ? "Run failed after retries" : suppressed ? "No second email sent" : "Email delivered",
+      state: done ? "done" : failed ? "failed" : "idle",
+    },
   ];
 
   return (
@@ -82,10 +93,10 @@ export function Demo() {
               aria-hidden
               className={
                 "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs text-white " +
-                (s.state === "done" ? "bg-emerald-600" : s.state === "failed" ? "bg-red-600" : s.state === "active" ? "animate-pulse bg-amber-500" : "bg-zinc-300 dark:bg-zinc-700")
+                (s.state === "done" ? "bg-emerald-600" : s.state === "failed" ? "bg-red-600" : s.state === "skipped" ? "bg-amber-500" : s.state === "active" ? "animate-pulse bg-amber-500" : "bg-zinc-300 dark:bg-zinc-700")
               }
             >
-              {s.state === "done" ? "✓" : s.state === "failed" ? "!" : ""}
+              {s.state === "done" ? "✓" : s.state === "failed" ? "!" : s.state === "skipped" ? "–" : ""}
             </span>
             <span className={s.state === "idle" ? "text-zinc-400" : ""}>
               {s.label}
