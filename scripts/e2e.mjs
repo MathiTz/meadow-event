@@ -54,6 +54,30 @@ async function pollRun(eventId, timeoutMs = 90_000) {
   return { status: "Timeout" };
 }
 
+// Duplicate protection: the same recipient + movie must produce one email whether or not the sender sets an event id.
+async function checkDuplicates() {
+  const send = (event) =>
+    fetch(`${INNGEST}/e/test`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(event) }).then((r) => r.json());
+  const ev = (email, extra = {}) => ({ name: "meadow_api/movie.watched", data: { movie_title: "The Matrix", recipient_email: email }, ...extra });
+  const cases = [
+    ["no event id (function rateLimit)", "dup-a@test.com", {}],
+    ["same event id (Inngest event dedupe)", "dup-b@test.com", { id: "watch-dup-b" }],
+  ];
+  let failed = 0;
+  for (const [label, email, extra] of cases) {
+    await get(`${MOCK}/__reset`);
+    const first = await send(ev(email, extra));
+    await pollRun(first.ids[0]);
+    await send(ev(email, extra));
+    await new Promise((r) => setTimeout(r, 5_000)); // give a (wrongly) accepted second run time to send
+    const { emails } = await get(`${MOCK}/__sent`);
+    const ok = emails.length === 1;
+    console.log(`${ok ? "✓" : "✗"} duplicate: ${label}: 2 identical events -> ${emails.length} email(s)${ok ? "" : ", expected 1"}`);
+    failed += ok ? 0 : 1;
+  }
+  return failed;
+}
+
 async function main() {
   start("node", ["scripts/mock-services.mjs"]);
   start("npx", ["next", "dev", "-p", String(NEXT_PORT)]);
@@ -93,6 +117,8 @@ async function main() {
   }
 
   console.log(`\n${files.length - failures}/${files.length} fixtures passed`);
+
+  if (!only) failures += await checkDuplicates();
   return failures;
 }
 

@@ -20,6 +20,8 @@ export const sendMoviePlot = inngest.createFunction(
     // Resend's default limit is 2 req/s per team; queue instead of failing with 429s.
     throttle: { limit: 2, period: "1s" },
     concurrency: 10,
+    // Hard limit (excess runs are skipped, not queued): one recap per recipient + movie per minute, however the event was sent.
+    rateLimit: { limit: 1, period: "1m", key: 'event.data.recipient_email + "|" + event.data.movie_title' },
     onFailure: async ({ event, error, step }) => {
       const original = event.data.event.data as { movie_title?: string; recipient_email?: string };
       await step.sendEvent(

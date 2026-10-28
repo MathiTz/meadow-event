@@ -82,6 +82,26 @@ sequenceDiagram
 | Injection | Emails are [React Email](https://react.email/) components, so React escapes the plot and title; a plain-text part is included too |
 | Visibility | `onFailure` emits `meadow_api/movie.recap.failed` (hook for alerting or a dead-letter queue) |
 | Bad input | The event schema (`src/inngest/client.ts`) rejects empty titles and invalid emails |
+| Duplicate events | Same recipient + movie within a minute sends one email (see below) |
+| Flooding the endpoint | The demo's server action allows 5 sends per minute per IP |
+
+### Duplicate events
+
+The Resend idempotency key is the Inngest event id, so it stops a *retry* of one event from emailing twice. It does not stop two separate events, so there are three more layers, cheapest first:
+
+| Layer | Where | What it does |
+|---|---|---|
+| Per-IP limit | `src/app/actions.ts`, `src/lib/rate-limit.ts` | The public server action allows 5 sends per minute per IP, then answers "Too many requests". In memory, so use a shared store (Redis) behind several instances. |
+| Deterministic event id | `src/lib/dedupe.ts` | The sender sets `id = watch-<hash of recipient + movie>-<minute>`. Inngest drops an event whose id it has already seen, so a double click creates no second run. |
+| Function `rateLimit` | `src/inngest/functions/movie-watched.ts` | `limit: 1, period: "1m"`, keyed on recipient + title. A hard limit: excess runs are skipped, not queued. This is the backstop for callers that don't set an id and for the minute-bucket boundary. |
+
+The window is one minute, so a deliberate rewatch later still works. Titles are matched exactly by the function key (`The Matrix` and `the matrix` differ there), while the event id ignores case. Emails are lower-cased by the schema.
+
+On the demo page, an identical second request shows the duplicate as skipped and sends no second email:
+
+![Demo page showing a suppressed duplicate](docs/screenshots/demo-duplicate.png)
+
+The e2e runner checks both paths: two identical events, with and without a shared id, must produce one email. Without these layers the same test produced two.
 
 ## Setup
 
@@ -147,7 +167,7 @@ npm run e2e   # end-to-end against fixtures (below)
 | `flaky-resend` | Resend 500 once: Inngest retries, exactly one email delivered |
 | `invalid-email` | Malformed recipient: run fails fast, nothing sent |
 
-`npm run e2e` starts a local mock of OMDb + Resend (`scripts/mock-services.mjs`, via `OMDB_BASE_URL` / `RESEND_BASE_URL`), Next.js on :3100 and the Inngest dev server on :8288, replays each fixture, and asserts the run status and the emails the mock received. No real keys or real emails are involved. Run one fixture with `npm run e2e -- matrix`. You can also replay a fixture against your real keys:
+`npm run e2e` (the fixtures, then a duplicate-protection check) starts a local mock of OMDb + Resend (`scripts/mock-services.mjs`, via `OMDB_BASE_URL` / `RESEND_BASE_URL`), Next.js on :3100 and the Inngest dev server on :8288, replays each fixture, and asserts the run status and the emails the mock received. No real keys or real emails are involved. Run one fixture with `npm run e2e -- matrix`. You can also replay a fixture against your real keys:
 
 ```bash
 curl -X POST http://localhost:8288/e/test -H 'content-type: application/json' \
@@ -216,7 +236,7 @@ The code difference, side by side (the rest of the function body is identical):
 - Email content is the plot plus title/year/director/rating when available; the exercise only required the plot.
 - Resend without a verified domain can only send from `onboarding@resend.dev` **to the Resend account owner's address**. Testing used that address. `RESEND_FROM` is configurable for real use.
 - No persistence: the Inngest run history is the record of what was sent.
-- **Sending the same event twice sends two emails.** The Resend idempotency key is the Inngest event id, so it stops a *retry* of one event from emailing twice, not two separate `movie.watched` events (rewatching a movie is legitimate, so this is deliberate). Tested: two identical events without an `id` produced 2 emails; two events sharing an explicit `id` (for example `watch-<userId>-<movieId>`) produced 1, because Inngest drops events with a repeated id. If duplicates should be suppressed, the producer sets that `id`.
+- **The same recipient + movie within one minute sends one email.** A rewatch after that sends another. See "Duplicate events" above for the layers and their limits.
 
 ## Recommendations for improving this exercise
 1. **Provide a ready sandbox**: a verified Resend sender/domain or a documented test inbox, plus a shared OMDb key. Candidates otherwise lose time on the Resend "only send to yourself" restriction, which says nothing about their skill.
